@@ -1,7 +1,9 @@
-from datetime import datetime 
+from datetime import datetime, timedelta 
 
 import requests
 from airflow.sdk import dag, task 
+import json
+from pathlib import Path
 
 API_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -11,7 +13,12 @@ API_URL = "https://api.open-meteo.com/v1/forecast"
     start_date = datetime(2026,10,1),
     schedule = "@daily",
     catchup=False,
-    tags=["nauka"]
+    tags=["nauka"],
+    default_args={
+        "retries":3,
+        "retry_delay":timedelta(minutes=2)
+    }
+ 
 )
 
 def weather_daily():
@@ -33,6 +40,12 @@ def weather_daily():
         temps = data["hourly"]["temperature_2m"] 
         print(f"Dzien {ds}: liczba pomiarów = {len(temps)}")
         print(f"Min {min(temps)}, Max {max(temps)}")
+        path = Path(f"/usr/local/airflow/include/data/raw/weather/dt={ds}/weather.json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
+            json.dump(data, f)
+        print(f"Zapisano: {path}")
+        return str(path)
 
     fetch_weather()
 

@@ -4,6 +4,7 @@ import requests
 from airflow.sdk import dag, task 
 import json
 from pathlib import Path
+import pandas as pd
 
 API_URL = "https://api.open-meteo.com/v1/forecast"
 
@@ -47,6 +48,25 @@ def weather_daily():
         print(f"Zapisano: {path}")
         return str(path)
 
-    fetch_weather()
+    @task
+    def transform_weather(raw_path,ds=None):
+        with open(raw_path) as f:
+            data = json.load(f)
+
+        df = pd.DataFrame({
+            "time": data["hourly"]["time"],
+            "temperature": data["hourly"]["temperature_2m"]
+        })
+        df["time"] = pd.to_datetime(df["time"])
+        df["dt"] = ds
+
+        path = Path(f"/usr/local/airflow/include/data/processed/weather/dt={ds}/weather.parquet")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_parquet(path, index=False)
+        print(f"Zapisano: {len(df)} wierszy do {path}")
+        return str(path)
+
+    transform_weather(fetch_weather())  
+
 
 weather_daily()
